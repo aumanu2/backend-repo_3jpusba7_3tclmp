@@ -1,48 +1,64 @@
 """
-Database Schemas
+Database Schemas for Saree Sanctuary
 
-Define your MongoDB collection schemas here using Pydantic models.
-These schemas are used for data validation in your application.
+Each Pydantic model represents a MongoDB collection.
+Collection name is the lowercase of the class name.
 
-Each Pydantic model represents a collection in your database.
-Model name is converted to lowercase for the collection name:
-- User -> "user" collection
-- Product -> "product" collection
-- BlogPost -> "blogs" collection
+Use these models for validation before writing to the database.
 """
 
-from pydantic import BaseModel, Field
-from typing import Optional
+from __future__ import annotations
+from typing import List, Optional, Literal
+from pydantic import BaseModel, Field, HttpUrl
 
-# Example schemas (replace with your own):
 
-class User(BaseModel):
-    """
-    Users collection schema
-    Collection name: "user" (lowercase of class name)
-    """
-    name: str = Field(..., description="Full name")
-    email: str = Field(..., description="Email address")
-    address: str = Field(..., description="Address")
-    age: Optional[int] = Field(None, ge=0, le=120, description="Age in years")
-    is_active: bool = Field(True, description="Whether user is active")
+class Category(BaseModel):
+    name: str = Field(..., description="Display name of the category (e.g., Banarasi)")
+    slug: str = Field(..., description="URL-safe unique slug (e.g., banarasi)")
+
+
+class Vendor(BaseModel):
+    store_name: str = Field(..., description="Public store name")
+    slug: str = Field(..., description="URL-safe unique slug for the vendor")
+    logo_url: Optional[HttpUrl] = Field(None, description="Public logo URL")
+    about: Optional[str] = Field(None, description="Short story/about the vendor")
+    verified: bool = Field(False, description="Whether vendor is verified")
+    membership_status: Literal["active", "expired"] = Field("active")
+    membership_renewal_date: Optional[str] = Field(None, description="ISO date string for renewal")
+    region: Optional[str] = Field(None, description="Vendor region/city/state")
+
 
 class Product(BaseModel):
-    """
-    Products collection schema
-    Collection name: "product" (lowercase of class name)
-    """
-    title: str = Field(..., description="Product title")
-    description: Optional[str] = Field(None, description="Product description")
-    price: float = Field(..., ge=0, description="Price in dollars")
-    category: str = Field(..., description="Product category")
-    in_stock: bool = Field(True, description="Whether product is in stock")
+    title: str
+    slug: str
+    description: Optional[str] = None
+    vendor_slug: str = Field(..., description="FK to Vendor.slug")
+    price_in_paise: int = Field(..., ge=0)
+    saree_type: str = Field(..., description="Category name or type")
+    color: Optional[str] = None
+    material: Optional[str] = None
+    occasion: Optional[str] = None
+    care: Optional[str] = None
+    images: List[HttpUrl] = Field(default_factory=list)
+    stock: int = Field(10, ge=0)
 
-# Add your own schemas here:
-# --------------------------------------------------
 
-# Note: The Flames database viewer will automatically:
-# 1. Read these schemas from GET /schema endpoint
-# 2. Use them for document validation when creating/editing
-# 3. Handle all database operations (CRUD) directly
-# 4. You don't need to create any database endpoints!
+class Review(BaseModel):
+    product_slug: str
+    rating: int = Field(..., ge=1, le=5)
+    comment: Optional[str] = None
+    author_name: Optional[str] = None
+
+
+class Order(BaseModel):
+    buyer_name: str
+    buyer_email: str
+    vendor_slug: str
+    items: List[dict] = Field(..., description="List of items with product_slug, quantity, price_in_paise")
+    total_in_paise: int = Field(..., ge=0)
+    status: Literal["pending", "paid", "dispatched", "delivered", "refunded"] = "pending"
+
+
+# Note for the built-in database viewer:
+# - It will read these via GET /schema
+# - Use class name lowercased as the collection name
